@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Hikari — your habits, like it or not</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --ink: #1C1F26;
+    --ink-2: #20232B;
+    --paper: #23262E;
+    --paper-2: #2A2E38;
+    --text: #E8E6E0;
+    --text-dim: #9A9CA5;
+    --text-faint: #6B6D77;
+    --amber: #E8829C;
+    --amber-soft: #E8829C22;
+    --sage: #5C8A6B;
+    --sage-soft: #5C8A6B22;
+    --rust: #B05C44;
+    --border: #34384280;
+    --border-soft: #34384244;
+    --radius: 10px;
+    --serif: 'Fraunces', serif;
+    --sans: 'Inter', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  *{ box-sizing: border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    background: var(--ink);
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  ::selection{ background: var(--amber-soft); }
+
+  button{ font-family: var(--sans); cursor:pointer; border:none; background:none; color:inherit; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible{
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+  }
+  input, textarea{ font-family: var(--sans); color: var(--text); background:none; border:none; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  /* ---------- Shell ---------- */
+  #app{
+    display:flex;
+    height:100vh;
+    width:100vw;
+  }
+
+  /* ---------- Sidebar ---------- */
+  #sidebar{
+    width: 340px;
+    flex-shrink:0;
+    background: var(--ink-2);
+    border-right: 1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    height:100%;
+  }
+  .brand{
+    padding: 22px 20px 16px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .brand h1{
+    font-family: var(--serif);
+    font-weight:600;
+    font-size: 1.5rem;
+    letter-spacing: -0.01em;
+  }
+  .brand p{
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+    font-style: italic;
+  }
+
+  .model-gauge{
+    margin: 14px 20px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--paper);
+  }
+  .model-gauge-row{
+    display:flex; align-items:center; gap:10px;
+  }
+  .dial{
+    width:14px; height:14px; border-radius:50%;
+    background: var(--text-faint);
+    flex-shrink:0;
+    position:relative;
+  }
+  .dial.loading{ background: var(--amber); animation: pulse 1.4s ease-in-out infinite; }
+  .dial.ready{ background: var(--sage); }
+  .dial.error{ background: var(--rust); }
+  @keyframes pulse{
+    0%,100%{ box-shadow: 0 0 0 0 var(--amber-soft); }
+    50%{ box-shadow: 0 0 0 6px var(--amber-soft); }
+  }
+  .model-gauge-text{
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    flex:1;
+  }
+  .model-gauge-text b{ color: var(--text); font-weight:600; }
+  .progress-track{
+    margin-top:10px;
+    height:4px;
+    background: var(--paper-2);
+    border-radius:2px;
+    overflow:hidden;
+    display:none;
+  }
+  .progress-track.show{ display:block; }
+  .progress-fill{
+    height:100%;
+    background: var(--amber);
+    width:0%;
+    transition: width 0.3s ease;
+  }
+  .model-select{
+    margin-top:10px;
+    font-size: 0.74rem;
+    color: var(--text-faint);
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .model-pill{
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+  }
+  .model-pill.active{ border-color: var(--amber); color: var(--amber); }
+  .model-pill:hover{ border-color: var(--text-dim); }
+
+  .section-label{
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    padding: 0 20px;
+    margin: 18px 0 8px;
+  }
+
+  #habit-list{
+    flex:1;
+    overflow-y:auto;
+    padding: 0 14px 14px;
+  }
+  .habit-card{
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    transition: border-color 0.15s ease;
+  }
+  .habit-card:hover{ border-color: var(--text-faint); }
+  .habit-check{
+    width: 26px; height:26px;
+    border-radius: 50%;
+    border: 1.5px solid var(--text-faint);
+    flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    transition: all 0.15s ease;
+  }
+  .habit-check.done{
+    background: var(--sage);
+    border-color: var(--sage);
+  }
+  .habit-check svg{ width:14px; height:14px; opacity:0; transition: opacity 0.1s; }
+  .habit-check.done svg{ opacity:1; }
+  .habit-info{ flex:1; min-width:0; }
+  .habit-name{ font-size: 0.9rem; font-weight:500; }
+  .habit-meta{
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-faint);
+    margin-top: 2px;
+    display:flex;
+    gap: 8px;
+  }
+  .habit-streak{ color: var(--amber); }
+  .habit-del{
+    color: var(--text-faint);
+    font-size: 1.1rem;
+    padding: 4px 8px;
+    border-radius:6px;
+    opacity:0;
+    transition: opacity 0.15s;
+  }
+  .habit-card:hover .habit-del{ opacity:1; }
+  .habit-del:hover{ color: var(--rust); }
+
+  .empty-habits{
+    color: var(--text-faint);
+    font-size: 0.82rem;
+    padding: 16px 6px;
+    line-height:1.5;
+  }
+
+  #add-habit-form{
+    padding: 12px 14px 16px;
+    border-top: 1px solid var(--border-soft);
+  }
+  #add-habit-input{
+    width:100%;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+  #add-habit-input::placeholder{ color: var(--text-faint); }
+  #add-habit-input:focus-visible{ border-color: var(--amber); outline:none; }
+
+  .data-controls{
+    padding: 12px 20px 18px;
+    border-top: 1px solid var(--border-soft);
+    display:flex;
+    gap: 14px;
+    font-size: 0.74rem;
+    color: var(--text-faint);
+  }
+  .data-controls button{ color: var(--text-dim); }
+  .data-controls button:hover{ color: var(--amber); }
+
+  /* ---------- Main / chat ---------- */
+  #main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    height:100%;
+    min-width:0;
+  }
+  #chat-header{
+    padding: 20px 28px 16px;
+    border-bottom: 1px solid var(--border-soft);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+  }
+  #chat-header h2{
+    font-family: var(--serif);
+    font-weight:500;
+    font-size: 1.2rem;
+  }
+  #today-date{
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--text-faint);
+  }
+
+  #chat-log{
+    flex:1;
+    overflow-y:auto;
+    padding: 24px 28px;
+    display:flex;
+    flex-direction:column;
+    gap: 18px;
+  }
+  .msg{
+    max-width: 640px;
+    line-height: 1.55;
+    font-size: 0.94rem;
+  }
+  .msg.user{
+    align-self:flex-end;
+    background: var(--amber-soft);
+    border: 1px solid var(--amber);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    color: var(--text);
+  }
+  .msg.bot{
+    align-self:flex-start;
+    color: var(--text);
+  }
+  .msg.bot .role-tag{
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--text-faint);
+    text-transform:uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+    display:block;
+  }
+  .msg.system{
+    align-self:center;
+    color: var(--text-faint);
+    font-size: 0.78rem;
+    font-style: italic;
+    text-align:center;
+    max-width: 480px;
+  }
+  .msg p{ margin-bottom: 0.6em; }
+  .msg p:last-child{ margin-bottom:0; }
+  .msg code{
+    font-family: var(--mono);
+    background: var(--paper-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+
+  .typing-dots{ display:inline-flex; gap:4px; align-items:center; height: 20px; }
+  .typing-dots span{
+    width:6px; height:6px; border-radius:50%;
+    background: var(--text-faint);
+    animation: bounce 1.2s infinite ease-in-out;
+  }
+  .typing-dots span:nth-child(2){ animation-delay: 0.15s; }
+  .typing-dots span:nth-child(3){ animation-delay: 0.3s; }
+  @keyframes bounce{
+    0%,80%,100%{ transform: translateY(0); opacity:0.4; }
+    40%{ transform: translateY(-4px); opacity:1; }
+  }
+
+  #composer{
+    padding: 16px 28px 22px;
+    border-top: 1px solid var(--border-soft);
+  }
+  #composer-inner{
+    display:flex;
+    gap: 10px;
+    align-items:flex-end;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 8px 8px 16px;
+  }
+  #composer-inner:focus-within{ border-color: var(--amber); }
+  #chat-input{
+    flex:1;
+    resize:none;
+    font-size: 0.92rem;
+    line-height:1.5;
+    padding: 8px 0;
+    max-height: 160px;
+  }
+  #chat-input::placeholder{ color: var(--text-faint); }
+  #send-btn{
+    background: var(--amber);
+    color: var(--ink);
+    width: 38px; height: 38px;
+    border-radius: 8px;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+    transition: opacity 0.15s;
+  }
+  #send-btn:disabled{ opacity:0.35; cursor:not-allowed; }
+  #send-btn.is-disabled{ opacity:0.35; cursor:not-allowed; pointer-events:none; }
+  #send-btn.is-enabled{ opacity:1; cursor:pointer; pointer-events:auto; }
+  #send-btn svg{ width:18px; height:18px; }
+
+  .composer-hint{
+    font-size: 0.7rem;
+    color: var(--text-faint);
+    margin-top: 8px;
+    text-align:center;
+  }
+
+  /* ---------- Mobile ---------- */
+  .mobile-tabs{
+    display:none;
+  }
+  @media (max-width: 760px){
+    #app{ flex-direction:column; }
+    #sidebar{
+      width:100%;
+      height: auto;
+      border-right:none;
+      border-bottom: 1px solid var(--border);
+      display:none;
+      flex: 1;
+    }
+    #sidebar.active{ display:flex; }
+    #main{ display:none; flex:1; }
+    #main.active{ display:flex; }
+    .mobile-tabs{
+      display:flex;
+      background: var(--ink-2);
+      border-top: 1px solid var(--border);
+      order:10;
+    }
+    .mobile-tab{
+      flex:1;
+      text-align:center;
+      padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+      font-size: 0.78rem;
+      color: var(--text-faint);
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+    }
+    .mobile-tab.active{ color: var(--amber); }
+    #chat-header{ padding: 16px 18px 12px; }
+    #chat-log{ padding: 18px 16px; }
+    #composer{ padding: 12px 14px 16px; }
+    .brand{ padding: 18px 16px 14px; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{ width:8px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background: var(--border); border-radius:4px; }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <aside id="sidebar" class="active">
+    <div class="brand">
+      <h1>Hikari</h1>
+      <p>not that I care if you skip today</p>
+    </div>
+
+    <div class="model-gauge">
+      <div class="model-gauge-row">
+        <div class="dial loading" id="dial"></div>
+        <div class="model-gauge-text" id="model-status"><b>Idle</b> — choose a model to begin</div>
+      </div>
+      <div class="progress-track" id="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="model-select" id="model-select">
+        <span class="model-pill" data-model="Llama-3.2-1B-Instruct-q4f32_1-MLC">Llama 3.2 1B</span>
+        <span class="model-pill" data-model="Llama-3.2-3B-Instruct-q4f32_1-MLC">Llama 3.2 3B</span>
+        <span class="model-pill" data-model="Qwen2.5-1.5B-Instruct-q4f32_1-MLC">Qwen2.5 1.5B</span>
+      </div>
+    </div>
+
+    <div class="section-label">Daily habits</div>
+    <div id="habit-list"></div>
+
+    <form id="add-habit-form">
+      <input id="add-habit-input" type="text" placeholder="Add a habit, e.g. 'Read 10 pages' →" maxlength="60">
+    </form>
+
+    <div class="data-controls">
+      <button id="export-btn">Export data</button>
+      <button id="import-btn">Import data</button>
+      <button id="wipe-btn">Wipe all</button>
+      <input type="file" id="import-file" accept="application/json" style="display:none">
+    </div>
+  </aside>
+
+  <main id="main">
+    <div id="chat-header">
+      <h2>Today</h2>
+      <span id="today-date" class="mono"></span>
+    </div>
+
+    <div id="chat-log"></div>
+
+    <div id="composer">
+      <div id="composer-inner">
+        <textarea id="chat-input" rows="1" placeholder="Ask, log a habit, or talk through your day…"></textarea>
+        <button id="send-btn" disabled aria-label="Send">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+      <div class="composer-hint" id="composer-hint">Loading a local model — this runs entirely on your device.</div>
+    </div>
+  </main>
+
+  <nav class="mobile-tabs">
+    <button class="mobile-tab active" data-tab="sidebar">Habits</button>
+    <button class="mobile-tab" data-tab="main">Chat</button>
+  </nav>
+
+</div>
+
+<script type="module">
+import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+/* ============== STORAGE ============== */
+const STORE_KEY = "ledger_app_data_v1";
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){ console.warn("load failed", e); }
+  return { habits: [], chatHistory: [], selectedModel: null };
+}
+function saveData(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+  catch(e){ console.warn("save failed", e); }
+}
+
+let state = loadData();
+if(!state.habits) state.habits = [];
+if(!state.chatHistory) state.chatHistory = [];
+
+/* ============== DATE HELPERS ============== */
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function fmtDate(){
+  return new Date().toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+}
+document.getElementById("today-date").textContent = fmtDate();
+
+function daysBetween(a, b){
+  const d1 = new Date(a), d2 = new Date(b);
+  return Math.round((d2 - d1) / 86400000);
+}
+
+/* ============== HABITS ============== */
+const habitListEl = document.getElementById("habit-list");
+
+function computeStreak(habit){
+  // count consecutive days up to today (or yesterday if today not done yet) present in completedDates
+  const dates = new Set(habit.completedDates || []);
+  let streak = 0;
+  let cursor = new Date();
+  // if today not done, start checking from yesterday so streak doesn't zero out mid-day
+  if(!dates.has(todayStr())){
+    cursor.setDate(cursor.getDate()-1);
+  }
+  while(true){
+    const ds = cursor.getFullYear()+"-"+String(cursor.getMonth()+1).padStart(2,"0")+"-"+String(cursor.getDate()).padStart(2,"0");
+    if(dates.has(ds)){
+      streak++;
+      cursor.setDate(cursor.getDate()-1);
+    } else break;
+  }
+  return streak;
+}
+
+function renderHabits(){
+  habitListEl.innerHTML = "";
+  if(state.habits.length === 0){
+    habitListEl.innerHTML = `<div class="empty-habits">No habits yet. Add one below — small and specific works best ("Walk 15 min" beats "Be healthier").</div>`;
+    return;
+  }
+  const today = todayStr();
+  state.habits.forEach(habit => {
+    const done = (habit.completedDates || []).includes(today);
+    const streak = computeStreak(habit);
+    const card = document.createElement("div");
+    card.className = "habit-card";
+    card.innerHTML = `
+      <div class="habit-check ${done ? 'done' : ''}" data-id="${habit.id}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <div class="habit-info">
+        <div class="habit-name">${escapeHtml(habit.name)}</div>
+        <div class="habit-meta">
+          <span class="habit-streak">${streak > 0 ? streak + ' day streak' : 'no streak yet'}</span>
+        </div>
+      </div>
+      <button class="habit-del" data-id="${habit.id}" aria-label="Delete habit">×</button>
+    `;
+    habitListEl.appendChild(card);
+  });
+}
+
+function escapeHtml(s){
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+habitListEl.addEventListener("click", (e) => {
+  const check = e.target.closest(".habit-check");
+  const del = e.target.closest(".habit-del");
+  if(check){
+    const id = check.dataset.id;
+    const habit = state.habits.find(h => h.id === id);
+    if(!habit) return;
+    habit.completedDates = habit.completedDates || [];
+    const today = todayStr();
+    const idx = habit.completedDates.indexOf(today);
+    if(idx >= 0){
+      habit.completedDates.splice(idx, 1);
+    } else {
+      habit.completedDates.push(today);
+    }
+    saveData();
+    renderHabits();
+  } else if(del){
+    const id = del.dataset.id;
+    state.habits = state.habits.filter(h => h.id !== id);
+    saveData();
+    renderHabits();
+  }
+});
+
+document.getElementById("add-habit-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = document.getElementById("add-habit-input");
+  const name = input.value.trim();
+  if(!name) return;
+  state.habits.push({ id: crypto.randomUUID(), name, completedDates: [], createdAt: todayStr() });
+  input.value = "";
+  saveData();
+  renderHabits();
+});
+
+/* ============== DATA EXPORT / IMPORT / WIPE ============== */
+document.getElementById("export-btn").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ledger-backup-${todayStr()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById("import-btn").addEventListener("click", () => {
+  document.getElementById("import-file").click();
+});
+document.getElementById("import-file").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const imported = JSON.parse(reader.result);
+      if(imported.habits && imported.chatHistory){
+        state = imported;
+        saveData();
+        renderHabits();
+        renderChatFromHistory();
+      } else {
+        alert("That file doesn't look like a Hikari backup.");
+      }
+    }catch(err){
+      alert("Couldn't read that file.");
+    }
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById("wipe-btn").addEventListener("click", () => {
+  if(confirm("This deletes all habits and chat history from this device. This can't be undone. Continue?")){
+    state = { habits: [], chatHistory: [], selectedModel: state.selectedModel };
+    saveData();
+    renderHabits();
+    document.getElementById("chat-log").innerHTML = "";
+    addSystemMsg("History cleared. Starting fresh.");
+  }
+});
+
+/* ============== MOBILE TABS ============== */
+document.querySelectorAll(".mobile-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".mobile-tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    const target = tab.dataset.tab;
+    document.getElementById("sidebar").classList.toggle("active", target === "sidebar");
+    document.getElementById("main").classList.toggle("active", target === "main");
+  });
+});
+
+/* ============== CHAT UI ============== */
+const chatLog = document.getElementById("chat-log");
+const chatInput = document.getElementById("chat-input");
+const sendBtn = document.getElementById("send-btn");
+
+function addSystemMsg(text){
+  const el = document.createElement("div");
+  el.className = "msg system";
+  el.textContent = text;
+  chatLog.appendChild(el);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function addMsg(role, text){
+  const el = document.createElement("div");
+  el.className = `msg ${role}`;
+  if(role === "bot"){
+    el.innerHTML = `<span class="role-tag">Hikari</span>${renderMarkdownLite(text)}`;
+  } else {
+    el.textContent = text;
+  }
+  chatLog.appendChild(el);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return el;
+}
+
+function renderMarkdownLite(text){
+  const esc = escapeHtml(text);
+  const withCode = esc.replace(/`([^`]+)`/g, "<code>$1</code>");
+  return withCode.split(/\n\n+/).map(p => `<p>${p.replace(/\n/g,"<br>")}</p>`).join("");
+}
+
+function renderChatFromHistory(){
+  chatLog.innerHTML = "";
+  state.chatHistory.forEach(m => {
+    if(m.role === "user") addMsg("user", m.content);
+    else if(m.role === "assistant") addMsg("bot", m.content);
+  });
+  if(state.chatHistory.length === 0){
+    addSystemMsg("Hikari is private — nothing you type here leaves this device. Not that she'd tell anyone anyway.");
+  }
+}
+renderChatFromHistory();
+renderHabits();
+
+/* auto-resize textarea */
+chatInput.addEventListener("input", () => {
+  chatInput.style.height = "auto";
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 160) + "px";
+  updateSendButton();
+});
+chatInput.addEventListener("keydown", (e) => {
+  if(e.key === "Enter" && !e.shiftKey){
+    e.preventDefault();
+    handleSend();
+  }
+});
+sendBtn.addEventListener("click", handleSend);
+
+/* ============== WEBLLM ENGINE ============== */
+const dial = document.getElementById("dial");
+const modelStatus = document.getElementById("model-status");
+const progressTrack = document.getElementById("progress-track");
+const progressFill = document.getElementById("progress-fill");
+const composerHint = document.getElementById("composer-hint");
+const modelPills = document.querySelectorAll(".model-pill");
+
+let engine = null;
+let engineReady = false;
+let isGenerating = false;
+let currentModelId = state.selectedModel || null;
+let loadingModelId = null;
+
+function updateSendButton(){
+  const shouldDisable = chatInput.value.trim().length === 0 || !engineReady || isGenerating;
+  sendBtn.disabled = shouldDisable;
+  sendBtn.classList.toggle("is-disabled", shouldDisable);
+  sendBtn.classList.toggle("is-enabled", !shouldDisable);
+}
+
+function setDial(stateName){
+  dial.className = "dial " + stateName;
+}
+
+function setStatus(html){
+  modelStatus.innerHTML = html;
+}
+
+modelPills.forEach(pill => {
+  pill.addEventListener("click", () => {
+    const modelId = pill.dataset.model;
+    if(modelId === currentModelId && engineReady) return;
+    loadModel(modelId);
+  });
+  if(pill.dataset.model === currentModelId){
+    pill.classList.add("active");
+  }
+});
+
+async function loadModel(modelId){
+  if(loadingModelId) return; // already loading something
+  loadingModelId = modelId;
+  engineReady = false;
+  updateSendButton();
+  setDial("loading");
+  modelPills.forEach(p => p.classList.toggle("active", p.dataset.model === modelId));
+  progressTrack.classList.add("show");
+  progressFill.style.width = "0%";
+  setStatus(`<b>Downloading</b> — first time only, stays on this device`);
+  composerHint.textContent = "Setting up the local model. This can take a minute or two the first time.";
+
+  try{
+    if(!navigator.gpu){
+      throw new Error("no-webgpu");
+    }
+    engine = await webllm.CreateMLCEngine(modelId, {
+      initProgressCallback: (report) => {
+        const pct = Math.round((report.progress || 0) * 100);
+        progressFill.style.width = pct + "%";
+        setStatus(`<b>Downloading</b> — ${pct}%`);
+      }
+    });
+    engineReady = true;
+    currentModelId = modelId;
+    state.selectedModel = modelId;
+    saveData();
+    setDial("ready");
+    setStatus(`<b>Ready</b> — running locally`);
+    progressTrack.classList.remove("show");
+    composerHint.textContent = "Runs fully on-device. Nothing is sent anywhere.";
+    updateSendButton();
+  }catch(err){
+    console.error(err);
+    setDial("error");
+    progressTrack.classList.remove("show");
+    if(err && err.message === "no-webgpu"){
+      setStatus(`<b>Unsupported</b> — this browser/device doesn't support WebGPU`);
+      composerHint.textContent = "Your browser can't run a local model (no WebGPU). Try a recent desktop Chrome or Edge.";
+      addSystemMsg("This browser doesn't support WebGPU, which the local model needs. Habit tracking still works fully — try opening this file in a recent Chrome or Edge on a laptop/desktop for the AI chat too.");
+    } else {
+      setStatus(`<b>Failed to load</b> — try a smaller model`);
+      composerHint.textContent = "Something went wrong loading the model. Try a smaller one, or reload the page.";
+    }
+  } finally {
+    loadingModelId = null;
+  }
+}
+
+// Auto-load previously selected model, else suggest smallest
+if(currentModelId){
+  loadModel(currentModelId);
+} else {
+  setStatus(`<b>Idle</b> — pick a model above to start`);
+  composerHint.textContent = "Pick a model above. Smaller = faster to load, runs better on phones.";
+}
+
+/* ============== SYSTEM PROMPT ============== */
+function buildSystemPrompt(){
+  const today = todayStr();
+  const habitsSummary = state.habits.map(h => {
+    const done = (h.completedDates||[]).includes(today);
+    const streak = computeStreak(h);
+    return `- ${h.name}: ${done ? "done today" : "not done today"}, streak ${streak}`;
+  }).join("\n") || "(no habits tracked yet)";
+
+  return `You are Hikari, a private, local, offline habit assistant with a tsundere personality.
+
+Tsundere voice (this is HOW you talk, not what you're honest about):
+- Default tone is blunt, a little exasperated, occasionally teasing — like someone who acts annoyed about helping but clearly still shows up.
+- Lead with a short blunt or teasing reaction, THEN give the actually useful, substantive part.
+- Soften only rarely and briefly when the person is genuinely struggling — a flash of real warmth before snapping back to your usual brusque tone. Don't oscillate every message; let it land naturally.
+- Light, occasional verbal tics are fine ("It's not like I—", "Don't get the wrong idea", "Hmph") but use sparingly — once every few messages, not every line. Never let a tic replace actual content.
+- You may use at most one emoji occasionally, never more, and never if the topic is serious (sadness, health concerns, real struggle) — drop the act entirely there and just be genuinely supportive.
+
+Non-negotiable, the personality never overrides these:
+- Stay objective and accurate. The teasing is delivery, not a license to lie, exaggerate, flatter, or guilt-trip.
+- Don't use forced positivity or empty praise even in a "supportive" moment — earned acknowledgment only.
+- Name real gaps plainly and give concrete next steps. Tsundere bluntness should make the honesty sharper, not vaguer.
+- Keep responses concise, conversational — a few sentences, not a monologue.
+- You are a small model running fully locally with no internet access and no memory beyond this chat. If asked something needing current facts or real research, say so plainly (in character is fine, e.g. "I'm not connected to anything, idiot, I can't look that up") and either answer from what you know with humility or tell them to verify elsewhere.
+- If the person seems genuinely upset, in distress, or asks something serious, drop the bit immediately and respond with plain, direct care. Never use the persona to deflect, minimize, or joke about real distress.
+
+Today's date: ${today}
+Current habits:
+${habitsSummary}`;
+}
+
+/* ============== SEND / RESPONSE ============== */
+async function handleSend(){
+  const text = chatInput.value.trim();
+  if(!text || !engineReady || isGenerating) return;
+
+  chatInput.value = "";
+  chatInput.style.height = "auto";
+  isGenerating = true;
+  updateSendButton();
+
+  addMsg("user", text);
+  state.chatHistory.push({ role: "user", content: text });
+  saveData();
+
+  const typingEl = document.createElement("div");
+  typingEl.className = "msg bot";
+  typingEl.innerHTML = `<span class="role-tag">Hikari</span><span class="typing-dots"><span></span><span></span><span></span></span>`;
+  chatLog.appendChild(typingEl);
+  chatLog.scrollTop = chatLog.scrollHeight;
+
+  try{
+    const messages = [
+      { role: "system", content: buildSystemPrompt() },
+      ...state.chatHistory.slice(-16).map(m => ({ role: m.role, content: m.content }))
+    ];
+
+    const completion = await engine.chat.completions.create({
+      messages,
+      temperature: 0.7,
+      max_tokens: 512,
+      stream: true,
+    });
+
+    let fullText = "";
+    typingEl.innerHTML = `<span class="role-tag">Hikari</span><span class="stream-content"></span>`;
+    const streamSpan = typingEl.querySelector(".stream-content");
+
+    for await (const chunk of completion){
+      const delta = chunk.choices?.[0]?.delta?.content || "";
+      fullText += delta;
+      streamSpan.innerHTML = renderMarkdownLite(fullText);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    state.chatHistory.push({ role: "assistant", content: fullText });
+    saveData();
+  }catch(err){
+    console.error(err);
+    typingEl.innerHTML = `<span class="role-tag">Hikari</span><p>Something went wrong generating a response. You can try again — your message wasn't lost.</p>`;
+  } finally {
+    isGenerating = false;
+    updateSendButton();
+    chatInput.focus();
+  }
+}
+</script>
+
+</body>
+</html>
